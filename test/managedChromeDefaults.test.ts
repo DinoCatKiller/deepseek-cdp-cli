@@ -24,6 +24,30 @@ void test('resolveDefaultChromeExecutablePath resolves the linux binary name', (
   )
 })
 
+void test('resolveDefaultChromeExecutablePath prefers google-chrome-stable on linux', () => {
+  assert.equal(
+    resolveDefaultChromeExecutablePath('linux', {}, candidate =>
+      candidate === '/usr/bin/google-chrome-stable'),
+    '/usr/bin/google-chrome-stable',
+  )
+})
+
+void test('resolveDefaultChromeExecutablePath prefers google-chrome over chromium on linux', () => {
+  assert.equal(
+    resolveDefaultChromeExecutablePath('linux', {}, candidate =>
+      candidate === '/usr/bin/google-chrome' || candidate === '/usr/bin/chromium'),
+    '/usr/bin/google-chrome',
+  )
+})
+
+void test('resolveDefaultChromeExecutablePath falls back to chromium on linux', () => {
+  assert.equal(
+    resolveDefaultChromeExecutablePath('linux', {}, candidate =>
+      candidate === '/usr/bin/chromium'),
+    '/usr/bin/chromium',
+  )
+})
+
 void test('resolveDefaultChromeExecutablePath returns undefined for unsupported platforms', () => {
   assert.equal(resolveDefaultChromeExecutablePath('freebsd', {}, neverExists), undefined)
 })
@@ -119,24 +143,28 @@ void test('resolveDefaultChromeUserDataDir falls back to USERPROFILE when HOME i
 
 void test('the default probe resolves a real win32 Chrome layout without an injected probe', async () => {
   const localAppData = await mkdtemp(join(tmpdir(), 'deepseek-chrome-defaults-'))
-  const chromeDirectory = join(localAppData, 'Google', 'Chrome', 'Application')
+  // The win32 resolution joins segments with backslashes, so the fixture has to
+  // mirror that. Using `join()` here would emit forward slashes on POSIX hosts
+  // and the real `existsSync` probe would never match the layout.
+  const chromeDirectory = `${localAppData}\\Google\\Chrome\\Application`
+  const userDataDirectory = `${localAppData}\\Google\\Chrome\\User Data`
   try {
     await mkdir(chromeDirectory, { recursive: true })
-    await writeFile(join(chromeDirectory, 'chrome.exe'), '', 'utf8')
+    await writeFile(`${chromeDirectory}\\chrome.exe`, '', 'utf8')
 
     assert.equal(
       resolveDefaultChromeExecutablePath('win32', { LOCALAPPDATA: localAppData }),
-      join(chromeDirectory, 'chrome.exe'),
+      `${chromeDirectory}\\chrome.exe`,
     )
     assert.equal(
       resolveDefaultChromeUserDataDir('win32', { LOCALAPPDATA: localAppData }),
       undefined,
     )
 
-    await mkdir(join(localAppData, 'Google', 'Chrome', 'User Data'), { recursive: true })
+    await mkdir(userDataDirectory, { recursive: true })
     assert.equal(
       resolveDefaultChromeUserDataDir('win32', { LOCALAPPDATA: localAppData }),
-      join(localAppData, 'Google', 'Chrome', 'User Data'),
+      userDataDirectory,
     )
   } finally {
     await rm(localAppData, { recursive: true, force: true })

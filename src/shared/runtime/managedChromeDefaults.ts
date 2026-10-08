@@ -3,6 +3,19 @@ import { join } from 'node:path'
 
 export type ChromePathProbe = (candidate: string) => boolean
 
+// Linux distributions disagree on the Chrome binary name: Arch/Garuda ship
+// `google-chrome-stable`, Debian ships `google-chrome`, and Chromium-only
+// systems only have `chromium`. Probe the known locations so the launcher works
+// without passing `--chrome-executable-path` on every distro.
+const LINUX_CHROME_EXECUTABLE_CANDIDATES = [
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  '/snap/bin/chromium',
+]
+const LINUX_CHROME_EXECUTABLE_FALLBACK = 'google-chrome'
+
 export function resolveDefaultChromeExecutablePath(
   platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,
@@ -24,7 +37,10 @@ export function resolveDefaultChromeExecutablePath(
   }
 
   if (platform === 'linux') {
-    return 'google-chrome'
+    return (
+      firstExisting(LINUX_CHROME_EXECUTABLE_CANDIDATES, pathExists) ??
+      LINUX_CHROME_EXECUTABLE_FALLBACK
+    )
   }
 
   return undefined

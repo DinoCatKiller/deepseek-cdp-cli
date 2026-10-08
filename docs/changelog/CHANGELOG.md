@@ -3,6 +3,31 @@
 本文件按时间倒序记录本仓库相对于上游 `meomeo-dev/deepseek-cdp-cli` v0.2.1 的本地改动。
 `package.json` 版本仍为 `0.2.1`，以下改动尚未发版。
 
+## Unreleased — 2026-10-09（linux 分支）
+
+### Fixed — Linux / Garuda
+
+- Chrome 可执行文件改为按候选顺序探测（`src/shared/runtime/managedChromeDefaults.ts`）。
+  此前 linux 分支直接返回裸名 `google-chrome` 并依赖 PATH 查找，但 Arch / Garuda 只提供
+  `google-chrome-stable`，Debian 提供 `google-chrome`，只装了 Chromium 的系统则只有
+  `chromium`，默认路径在这类发行版上必然启动失败。
+  候选顺序：`/usr/bin/google-chrome-stable` → `/usr/bin/google-chrome` →
+  `/usr/bin/chromium` → `/usr/bin/chromium-browser` → `/snap/bin/chromium`；
+  全部不存在时回退到裸名 `google-chrome`，保留原行为。
+- 修正 `test/managedChromeDefaults.test.ts` 中 win32 fixture 在 POSIX 主机上必然失败的
+  断言：fixture 原先用 `join()` 拼目录，而 win32 解析使用反斜杠分隔符，真实 `existsSync`
+  探测永远匹配不上。这是唯一一个在 Linux 上跑不起来的既有用例。
+
+### Tests
+
+- 新增三个 linux 可执行文件解析用例：`google-chrome-stable` 优先、`google-chrome`
+  优先于 `chromium`、回退到 `chromium`。
+
+### Known limitations
+
+- user data dir 仍固定为 `~/.config/google-chrome`，不会探测 `~/.config/chromium`。
+  只用 Chromium 的系统需要显式传 `--chrome-user-data-dir ~/.config/chromium`。
+
 ## Unreleased — 2026-10-09
 
 ### Fixed — Windows 兼容性
