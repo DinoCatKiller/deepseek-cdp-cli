@@ -1097,6 +1097,9 @@ async function resolveReplyCommandSessionPlan(
     ...(explicitSessionId ? { explicitSessionId } : {}),
     ...(explicitSessionFile ? { explicitSessionFile } : {}),
     ...(lastSession ? { lastSessionId: lastSession.sessionId } : {}),
+    ...(lastSession?.sessionFilePath
+      ? { lastSessionFilePath: lastSession.sessionFilePath }
+      : {}),
   })
 }
 
@@ -1108,9 +1111,12 @@ async function executeReplyAndRememberSession(
     lastSessionStore: context.lastSessionStore,
     ...(context.plan.source === 'last-session'
       ? {
-          validateLastSession: async sessionId => {
+          validateLastSession: async target => {
             await resolveDeepSeekSessionTarget({
-              sessionId,
+              sessionId: target.sessionId,
+              ...(target.sessionFilePath
+                ? { sessionFile: target.sessionFilePath }
+                : {}),
               sessionStoreDir: readOptionalStringOption(
                 context.options,
                 'sessionStoreDir',
@@ -1127,6 +1133,7 @@ async function executeReplyAndRememberSession(
       return {
         ...delivery,
         sessionId: delivery.result.sessionId,
+        sessionFile: delivery.result.sessionFile,
       }
     },
   })

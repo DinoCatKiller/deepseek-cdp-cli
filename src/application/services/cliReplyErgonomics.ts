@@ -12,7 +12,11 @@ export type CliReplySessionPlan =
       sessionId?: string | undefined
       sessionFile?: string | undefined
     }
-  | { source: 'last-session'; sessionId: string }
+  | {
+      source: 'last-session'
+      sessionId: string
+      sessionFilePath?: string | undefined
+    }
 
 export function resolveCliReplyMessage(input: {
   positionalMessage?: string | undefined
@@ -40,6 +44,7 @@ export function resolveCliReplySessionPlan(input: {
   explicitSessionId?: string | undefined
   explicitSessionFile?: string | undefined
   lastSessionId?: string | undefined
+  lastSessionFilePath?: string | undefined
 }): CliReplySessionPlan {
   const sessionId = normalizeOptionalString(input.explicitSessionId)
   const sessionFile = normalizeOptionalString(input.explicitSessionFile)
@@ -60,7 +65,12 @@ export function resolveCliReplySessionPlan(input: {
   }
   const lastSessionId = normalizeOptionalString(input.lastSessionId)
   if (lastSessionId) {
-    return { source: 'last-session', sessionId: lastSessionId }
+    const lastSessionFilePath = normalizeOptionalString(input.lastSessionFilePath)
+    return {
+      source: 'last-session',
+      sessionId: lastSessionId,
+      ...(lastSessionFilePath ? { sessionFilePath: lastSessionFilePath } : {}),
+    }
   }
   return { source: 'new-session' }
 }
@@ -77,20 +87,34 @@ export function resolveCliReplyChatModeForSession(input: {
 }
 
 export async function runCliReplyAndRememberSession<
-  TResult extends { sessionId: string },
+  TResult extends { sessionId: string; sessionFile?: string | undefined },
 >(input: {
   plan: CliReplySessionPlan
-  lastSessionStore: { save: (sessionId: string) => Promise<void> }
-  validateLastSession?: ((sessionId: string) => Promise<void>) | undefined
+  lastSessionStore: {
+    save: (sessionId: string, sessionFilePath?: string) => Promise<void>
+  }
+  validateLastSession?:
+    | ((target: { sessionId: string; sessionFilePath?: string | undefined }) => Promise<void>)
+    | undefined
   execute: (plan: CliReplySessionPlan) => Promise<TResult>
 }): Promise<TResult> {
   if (input.plan.source === 'last-session' && input.validateLastSession) {
     try {
-      await input.validateLastSession(input.plan.sessionId)
+      await input.validateLastSession({
+        sessionId: input.plan.sessionId,
+        ...(input.plan.sessionFilePath
+          ? { sessionFilePath: input.plan.sessionFilePath }
+          : {}),
+      })
     } catch (error) {
       throw new Error(
         `Last session pointer "${input.plan.sessionId}" is invalid or unavailable. `
           + `Run "deepseek new" to clear it, or pass an explicit session target. `
+          + (input.plan.sessionFilePath
+            ? `The pointer records its session file at "${input.plan.sessionFilePath}"; `
+              + 'session files are stored per working directory, so run the command from the '
+              + 'directory that created it, or clear the pointer. '
+            : '')
           + `Cause: ${errorMessage(error)}`,
         { cause: error },
       )
@@ -98,7 +122,7 @@ export async function runCliReplyAndRememberSession<
   }
 
   const result = await input.execute(input.plan)
-  await input.lastSessionStore.save(result.sessionId)
+  await input.lastSessionStore.save(result.sessionId, result.sessionFile)
   return result
 }
 

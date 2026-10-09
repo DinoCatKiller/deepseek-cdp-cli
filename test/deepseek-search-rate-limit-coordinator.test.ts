@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import test from 'node:test'
 import { DeepSeekSearchRateLimitCoordinator } from '../src/application/services/deepSeekSearchRateLimitCoordinator.js'
 
-void test('search retry coordination waits for running peers to settle before replay', async () => {
+void test('search retry coordination waits for running peers to settle before replay', async t => {
   const cwd = await mkdtemp(join(tmpdir(), 'deepseek-search-coordinator-'))
+  t.after(() => rm(cwd, { recursive: true, force: true }))
   const coordinator = new DeepSeekSearchRateLimitCoordinator({
     cwd,
     isProcessAlive: () => true,
@@ -37,8 +38,9 @@ void test('search retry coordination waits for running peers to settle before re
   await waitingLease.close()
 })
 
-void test('search retry coordination serializes multiple cooled-down waiters after peers drain', async () => {
+void test('search retry coordination serializes multiple cooled-down waiters after peers drain', async t => {
   const cwd = await mkdtemp(join(tmpdir(), 'deepseek-search-coordinator-'))
+  t.after(() => rm(cwd, { recursive: true, force: true }))
   const coordinator = new DeepSeekSearchRateLimitCoordinator({
     cwd,
     isProcessAlive: () => true,

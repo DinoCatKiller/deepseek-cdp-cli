@@ -50,15 +50,17 @@ export class FileSystemLastSessionStore {
     }
   }
 
-  async save(sessionId: string): Promise<void> {
+  async save(sessionId: string, sessionFilePath?: string): Promise<void> {
     const normalizedSessionId = sessionId.trim()
     if (!normalizedSessionId) {
       throw new Error('Last session id must be a non-empty string.')
     }
+    const normalizedSessionFilePath = sessionFilePath?.trim()
     const document: CliLastSessionDocument = {
       schemaVersion: 1,
       sessionId: normalizedSessionId,
       updatedAt: this.now().toISOString(),
+      ...(normalizedSessionFilePath ? { sessionFilePath: normalizedSessionFilePath } : {}),
     }
     await this.atomicWrite(
       this.filePath,
@@ -84,13 +86,21 @@ function parseLastSessionDocument(value: unknown): CliLastSessionDocument {
     throw new Error('last-session document must be an object.')
   }
   const record = value as Record<string, unknown>
-  const expectedKeys = ['schemaVersion', 'sessionId', 'updatedAt']
+  const requiredKeys = ['schemaVersion', 'sessionId', 'updatedAt']
+  const optionalKeys = ['sessionFilePath']
+  const knownKeys = [...requiredKeys, ...optionalKeys]
   const actualKeys = Object.keys(record)
   if (
-    actualKeys.length !== expectedKeys.length ||
-    expectedKeys.some(key => !actualKeys.includes(key))
+    !requiredKeys.every(key => actualKeys.includes(key)) ||
+    !actualKeys.every(key => knownKeys.includes(key))
   ) {
     throw new Error('last-session document fields are invalid.')
+  }
+  if (
+    record['sessionFilePath'] !== undefined &&
+    (typeof record['sessionFilePath'] !== 'string' || !record['sessionFilePath'].trim())
+  ) {
+    throw new Error('sessionFilePath must be a non-empty string when present.')
   }
   if (record['schemaVersion'] !== 1) {
     throw new Error('schemaVersion must be 1.')
@@ -105,10 +115,12 @@ function parseLastSessionDocument(value: unknown): CliLastSessionDocument {
   ) {
     throw new Error('updatedAt must be an ISO timestamp.')
   }
+  const sessionFilePath = record['sessionFilePath']
   return {
     schemaVersion: 1,
     sessionId: record['sessionId'],
     updatedAt: record['updatedAt'],
+    ...(typeof sessionFilePath === 'string' ? { sessionFilePath } : {}),
   }
 }
 

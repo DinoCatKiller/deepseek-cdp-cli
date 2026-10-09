@@ -1,21 +1,21 @@
 import assert from 'node:assert/strict'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import test from 'node:test'
+import test, { type TestContext } from 'node:test'
 import { runDeepSeekReplyWithRateLimitRetry } from '../src/application/services/deepSeekReplyRateLimitRetry.js'
 import { DeepSeekSearchRateLimitCoordinator } from '../src/application/services/deepSeekSearchRateLimitCoordinator.js'
 import { resolveDeepSeekReplyOutputMode } from '../src/application/services/deepSeekReplyOutputMode.js'
 import type { DeepSeekReplyResult } from '../src/types/deepseek-reply.types.js'
 
-void test('retries a search rate-limit result and preserves attempt history', async () => {
+void test('retries a search rate-limit result and preserves attempt history', async t => {
   const attempts: DeepSeekReplyResult[] = [
     createRateLimitReplyResult({ searchEnabled: true }),
     createRateLimitReplyResult({ searchEnabled: true }),
     createCompletedReplyResult(),
   ]
   const progressEvents: string[] = []
-  const searchCoordinator = await createSearchCoordinator()
+  const searchCoordinator = await createSearchCoordinator(t)
 
   const result = await runDeepSeekReplyWithRateLimitRetry({
     reply: createReplyInput(),
@@ -54,12 +54,12 @@ void test('retries a search rate-limit result and preserves attempt history', as
   ])
 })
 
-void test('marks retries as exhausted when rate limit persists beyond max retries', async () => {
+void test('marks retries as exhausted when rate limit persists beyond max retries', async t => {
   const attempts: DeepSeekReplyResult[] = [
     createRateLimitReplyResult({ searchEnabled: true }),
     createRateLimitReplyResult({ searchEnabled: true }),
   ]
-  const searchCoordinator = await createSearchCoordinator()
+  const searchCoordinator = await createSearchCoordinator(t)
 
   const result = await runDeepSeekReplyWithRateLimitRetry({
     reply: createReplyInput(),
@@ -85,9 +85,9 @@ void test('marks retries as exhausted when rate limit persists beyond max retrie
   assert.equal(result.retry?.attempts.at(-1)?.retryScheduled, false)
 })
 
-void test('general rate-limit replies do not inherit the search cooldown by default', async () => {
+void test('general rate-limit replies do not inherit the search cooldown by default', async t => {
   const progressEvents: Array<{ kind: string; cooldownMs?: number }> = []
-  const searchCoordinator = await createSearchCoordinator()
+  const searchCoordinator = await createSearchCoordinator(t)
 
   await runDeepSeekReplyWithRateLimitRetry({
     reply: createReplyInput(),
@@ -285,8 +285,11 @@ function createReplyInput() {
   }
 }
 
-async function createSearchCoordinator(): Promise<DeepSeekSearchRateLimitCoordinator> {
+async function createSearchCoordinator(
+  t: TestContext,
+): Promise<DeepSeekSearchRateLimitCoordinator> {
   const cwd = await mkdtemp(join(tmpdir(), 'deepseek-rate-limit-retry-'))
+  t.after(() => rm(cwd, { recursive: true, force: true }))
   return new DeepSeekSearchRateLimitCoordinator({
     cwd,
   })

@@ -86,4 +86,10 @@ export interface CliLastSessionDocument {
   schemaVersion: 1
   sessionId: string
   updatedAt: string
+  // Absolute path of the session file that was written for this pointer. Session
+  // files live under the working directory while this pointer lives under the
+  // config home, so recording the path keeps the pointer resolvable when the
+  // command runs from a different directory. Absent on pointers written by
+  // earlier versions.
+  sessionFilePath?: string | undefined
 }
